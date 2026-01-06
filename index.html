@@ -3,243 +3,291 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Venteliste-tracker</title>
+  <title>Venteliste-dashboard</title>
   <style>
-    :root { --bg:#0b0c10; --card:#12141b; --text:#e8e9ee; --muted:#9aa0ab; }
+    :root { --bg:#0b0c10; --card:#12141b; --text:#e8e9ee; --muted:#9aa0ab; --border:rgba(255,255,255,0.10); }
     body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); }
-    .wrap { max-width: 980px; margin: 0 auto; padding: 24px; }
-    .card { background: var(--card); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
-    h1 { margin: 0 0 6px; font-size: 22px; }
-    .sub { color: var(--muted); margin:0 0 16px; font-size: 14px; }
-    .row { display:flex; gap:16px; flex-wrap: wrap; align-items: center; }
-    .controls { display:flex; gap:10px; flex-wrap: wrap; align-items:center; }
-    label { font-size: 13px; color: var(--muted); display:flex; gap:8px; align-items:center; }
-    input[type="number"]{ width: 110px; padding: 8px 10px; border-radius: 10px; border:1px solid rgba(255,255,255,0.12); background:#0f1117; color:var(--text); }
-    input[type="range"]{ width: 320px; }
-    button{ padding: 9px 12px; border-radius: 12px; border:1px solid rgba(255,255,255,0.14); background:#0f1117; color:var(--text); cursor:pointer; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 22px; }
+    header { display:flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+    h1 { margin: 0; font-size: 22px; letter-spacing: 0.2px; }
+    .sub { margin: 0; color: var(--muted); font-size: 13px; }
+    .stamp { color: var(--muted); font-size: 12px; }
+    .grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    @media (max-width: 900px){ .grid { grid-template-columns: 1fr; } }
+
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
+    .cardHead { display:flex; justify-content: space-between; gap: 10px; align-items: start; }
+    .title { font-size: 16px; margin: 0; }
+    .meta { color: var(--muted); font-size: 12px; margin-top: 3px; }
+    .kpis { display:flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .pill { padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.10); font-size: 12px; color: var(--text); }
+
+    .actions { display:flex; gap: 8px; align-items:center; }
+    button{ padding: 8px 10px; border-radius: 12px; border:1px solid rgba(255,255,255,0.14); background:#0f1117; color:var(--text); cursor:pointer; font-size: 12px; }
     button:hover{ border-color: rgba(255,255,255,0.28); }
-    .meta { font-size: 13px; color: var(--muted); margin-top: 10px; }
-    .kpi { display:flex; gap:14px; flex-wrap: wrap; margin-top: 10px; }
-    .pill { padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.10); font-size: 13px; }
-    .queue { margin-top: 18px; }
-    svg { width: 100%; height: 220px; display:block; }
+    button:disabled{ opacity: 0.5; cursor: not-allowed; }
+
+    svg { width: 100%; height: 190px; display:block; margin-top: 8px; }
     .apt { filter: drop-shadow(0 6px 10px rgba(255,255,255,0.12)); }
     .pulse { transform-origin: 50% 50%; animation: pulse 2.4s ease-in-out infinite; }
     @keyframes pulse { 0%,100%{ transform: scale(1.00);} 50%{ transform: scale(1.05);} }
-    .hint { margin-top: 14px; font-size: 13px; color: var(--muted); }
-    .small { font-size: 12px; color: var(--muted); }
+
+    .error { background: rgba(255, 0, 0, 0.08); border:1px solid rgba(255,0,0,0.25); color: rgba(255,255,255,0.9); padding: 10px 12px; border-radius: 12px; margin-top: 12px; display:none; }
+    code { color: rgba(255,255,255,0.85); }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="card">
-      <h1>Venteliste-tracker</h1>
-      <p class="sub">Prototype: silhouetter i kø, “hende” rykker frem mod lejligheden.</p>
-
-      <div class="row">
-        <div class="controls">
-          <label>Placering
-            <input id="pos" type="number" min="1" value="850" />
-          </label>
-          <label>Total
-            <input id="total" type="number" min="10" value="2500" />
-          </label>
-          <label>Simuler (slider)
-            <input id="slider" type="range" min="1" max="2500" value="850" />
-          </label>
-          <button id="step">+10 frem</button>
-          <button id="reset">Reset</button>
-        </div>
+    <header>
+      <div>
+        <h1>Venteliste-dashboard</h1>
+        <p class="sub">6 ventelister — sorte silhouettes, rød kjole, lejlighed i enden.</p>
       </div>
+      <div class="stamp" id="updatedAt">Indlæser…</div>
+    </header>
 
-      <div class="kpi">
-        <div class="pill" id="kpiProgress">Progress: –</div>
-        <div class="pill" id="kpiHuman">Visuel plads: –</div>
-        <div class="pill" id="kpiDelta">Sidst: –</div>
-      </div>
-
-      <div class="queue">
-        <svg id="scene" viewBox="0 0 980 220" aria-label="Queue visualisering">
-          <!-- Track -->
-          <defs>
-            <linearGradient id="trackGrad" x1="0" x2="1">
-              <stop offset="0" stop-color="rgba(255,255,255,0.12)"></stop>
-              <stop offset="1" stop-color="rgba(255,255,255,0.04)"></stop>
-            </linearGradient>
-
-            <!-- Simple "person" silhouette -->
-            <g id="silhouette">
-              <circle cx="10" cy="8" r="7" fill="rgba(0,0,0,0.85)"></circle>
-              <rect x="3" y="16" width="14" height="34" rx="7" fill="rgba(0,0,0,0.85)"></rect>
-              <rect x="0" y="26" width="20" height="8" rx="4" fill="rgba(0,0,0,0.85)"></rect>
-            </g>
-
-            <!-- Girl in red dress -->
-            <g id="girl">
-              <circle cx="12" cy="8" r="7" fill="#1a1a1a"></circle>
-              <path d="M12 16 L2 50 Q12 58 22 50 Z" fill="#c1121f"></path>
-              <rect x="6" y="16" width="12" height="10" rx="5" fill="#1a1a1a"></rect>
-            </g>
-
-            <!-- Apartment icon -->
-            <g id="apartment">
-              <path d="M40 22 L70 0 L100 22 V92 H40 Z" fill="rgba(255,255,255,0.14)"></path>
-              <rect x="50" y="30" width="16" height="16" fill="rgba(255,255,255,0.20)"></rect>
-              <rect x="74" y="30" width="16" height="16" fill="rgba(255,255,255,0.20)"></rect>
-              <rect x="50" y="54" width="16" height="16" fill="rgba(255,255,255,0.20)"></rect>
-              <rect x="74" y="54" width="16" height="16" fill="rgba(255,255,255,0.20)"></rect>
-              <rect x="66" y="74" width="10" height="18" fill="rgba(255,255,255,0.20)"></rect>
-            </g>
-          </defs>
-
-          <rect x="30" y="120" width="860" height="10" rx="5" fill="url(#trackGrad)"></rect>
-
-          <!-- Apartment at end -->
-          <g class="apt pulse" transform="translate(860, 18)">
-            <use href="#apartment"></use>
-          </g>
-
-          <!-- People silhouettes (drawn by JS) -->
-          <g id="people"></g>
-
-          <!-- Girl marker -->
-          <g id="girlMarker" transform="translate(0,0)" style="transition: transform 900ms cubic-bezier(.2,.8,.2,1);">
-            <use href="#girl"></use>
-          </g>
-
-          <!-- Label -->
-          <text id="label" x="30" y="30" fill="rgba(255,255,255,0.7)" font-size="14"></text>
-        </svg>
-
-        <div class="hint">
-          Tip: Vi viser kun 50 “mennesker” og skalerer din datters position til en procent, så det altid ser pænt ud.
-        </div>
-      </div>
-
-      <div class="meta small" id="meta"></div>
-    </div>
+    <div id="error" class="error"></div>
+    <div id="grid" class="grid"></div>
   </div>
 
+  <svg width="0" height="0" style="position:absolute; left:-9999px; top:-9999px;" aria-hidden="true">
+    <defs>
+      <linearGradient id="trackGrad" x1="0" x2="1">
+        <stop offset="0" stop-color="rgba(255,255,255,0.12)"></stop>
+        <stop offset="1" stop-color="rgba(255,255,255,0.04)"></stop>
+      </linearGradient>
+
+      <!-- Simple "person" silhouette -->
+      <g id="silhouette">
+        <circle cx="10" cy="8" r="7" fill="rgba(0,0,0,0.85)"></circle>
+        <rect x="3" y="16" width="14" height="34" rx="7" fill="rgba(0,0,0,0.85)"></rect>
+        <rect x="0" y="26" width="20" height="8" rx="4" fill="rgba(0,0,0,0.85)"></rect>
+      </g>
+
+      <!-- Girl in red dress -->
+      <g id="girl">
+        <circle cx="12" cy="8" r="7" fill="#1a1a1a"></circle>
+        <path d="M12 16 L2 50 Q12 58 22 50 Z" fill="#c1121f"></path>
+        <rect x="6" y="16" width="12" height="10" rx="5" fill="#1a1a1a"></rect>
+      </g>
+
+      <!-- Apartment icon -->
+      <g id="apartment">
+        <path d="M40 22 L70 0 L100 22 V92 H40 Z" fill="rgba(255,255,255,0.14)"></path>
+        <rect x="50" y="30" width="16" height="16" fill="rgba(255,255,255,0.20)"></rect>
+        <rect x="74" y="30" width="16" height="16" fill="rgba(255,255,255,0.20)"></rect>
+        <rect x="50" y="54" width="16" height="16" fill="rgba(255,255,255,0.20)"></rect>
+        <rect x="74" y="54" width="16" height="16" fill="rgba(255,255,255,0.20)"></rect>
+        <rect x="66" y="74" width="10" height="18" fill="rgba(255,255,255,0.20)"></rect>
+      </g>
+    </defs>
+  </svg>
+
   <script>
-    // ---- Settings ----
-    const VISUAL_SLOTS = 50;               // number of silhouettes shown
+    // ---- Visual config ----
+    const VISUAL_SLOTS = 50;
     const TRACK_START_X = 40;
-    const TRACK_END_X = 850;               // apartment is around 860; keep space
-    const Y_BASE = 120;                    // baseline for track
-    const SIL_Y = 78;                      // silhouette y
-    const GIRL_Y = 78;                     // girl y
-
-    // ---- DOM ----
-    const posEl = document.getElementById("pos");
-    const totalEl = document.getElementById("total");
-    const sliderEl = document.getElementById("slider");
-    const stepEl = document.getElementById("step");
-    const resetEl = document.getElementById("reset");
-
-    const peopleG = document.getElementById("people");
-    const girlMarker = document.getElementById("girlMarker");
-    const label = document.getElementById("label");
-    const meta = document.getElementById("meta");
-
-    const kpiProgress = document.getElementById("kpiProgress");
-    const kpiHuman = document.getElementById("kpiHuman");
-    const kpiDelta = document.getElementById("kpiDelta");
-
-    let lastPos = null;
+    const TRACK_END_X   = 735;     // keep space for apartment
+    const SIL_Y         = 78;
+    const GIRL_Y        = 78;
 
     function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
-
-    function computeProgress(pos, total){
-      // 0..1 where 0 means "at the back", 1 means "at the front"
-      const p = 1 - (pos / total);
-      return clamp(p, 0, 1);
-    }
-
-    function visualIndex(progress){
-      // Map progress to a slot (0..VISUAL_SLOTS)
-      // 0 is far left (back), VISUAL_SLOTS is near apartment.
-      return Math.round(progress * VISUAL_SLOTS);
-    }
-
+    function computeProgress(pos, total){ return clamp(1 - (pos / total), 0, 1); }
+    function visualIndex(progress){ return Math.round(progress * VISUAL_SLOTS); }
     function xForSlot(slot){
       const t = slot / VISUAL_SLOTS;
       return TRACK_START_X + t * (TRACK_END_X - TRACK_START_X);
     }
+    function fmtPct(p){ return (Math.round(p * 1000) / 10).toFixed(1) + "%"; }
 
-    function renderPeople(){
-      peopleG.innerHTML = "";
-      // Draw silhouettes spaced evenly
+    function el(tag, attrs={}, children=[]){
+      const e = document.createElement(tag);
+      for(const [k,v] of Object.entries(attrs)){
+        if(k === "class") e.className = v;
+        else if(k.startsWith("on") && typeof v === "function") e.addEventListener(k.slice(2), v);
+        else e.setAttribute(k, v);
+      }
+      for(const c of children) e.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+      return e;
+    }
+
+    function svgEl(tag){
+      return document.createElementNS("http://www.w3.org/2000/svg", tag);
+    }
+
+    function buildQueueSvg(queue){
+      const svg = svgEl("svg");
+      svg.setAttribute("viewBox", "0 0 820 190");
+
+      // Track
+      const track = svgEl("rect");
+      track.setAttribute("x","30");
+      track.setAttribute("y","120");
+      track.setAttribute("width","720");
+      track.setAttribute("height","10");
+      track.setAttribute("rx","5");
+      track.setAttribute("fill","url(#trackGrad)");
+      svg.appendChild(track);
+
+      // Apartment
+      const apt = svgEl("g");
+      apt.setAttribute("class","apt pulse");
+      apt.setAttribute("transform","translate(710, 18)");
+      const aptUse = svgEl("use");
+      aptUse.setAttribute("href","#apartment");
+      apt.appendChild(aptUse);
+      svg.appendChild(apt);
+
+      // People
+      const peopleG = svgEl("g");
       for(let i=0;i<VISUAL_SLOTS;i++){
         const x = xForSlot(i);
-        const use = document.createElementNS("http://www.w3.org/2000/svg","use");
-        use.setAttribute("href","#silhouette");
-        use.setAttribute("transform",`translate(${x}, ${SIL_Y})`);
-        use.setAttribute("opacity","0.92");
-        peopleG.appendChild(use);
+        const u = svgEl("use");
+        u.setAttribute("href","#silhouette");
+        u.setAttribute("transform",`translate(${x}, ${SIL_Y})`);
+        u.setAttribute("opacity","0.92");
+        peopleG.appendChild(u);
+      }
+      svg.appendChild(peopleG);
+
+      // Girl marker (animated)
+      const girlMarker = svgEl("g");
+      girlMarker.style.transition = "transform 900ms cubic-bezier(.2,.8,.2,1)";
+      const gUse = svgEl("use");
+      gUse.setAttribute("href","#girl");
+      girlMarker.appendChild(gUse);
+      svg.appendChild(girlMarker);
+
+      // Label
+      const label = svgEl("text");
+      label.setAttribute("x","30");
+      label.setAttribute("y","30");
+      label.setAttribute("fill","rgba(255,255,255,0.7)");
+      label.setAttribute("font-size","13");
+      svg.appendChild(label);
+
+      function render(pos, total, deltaInfo){
+        total = Math.max(10, total);
+        pos = clamp(pos, 1, total);
+
+        const progress = computeProgress(pos, total);
+        const slot = visualIndex(progress);
+        const x = xForSlot(slot);
+
+        girlMarker.setAttribute("transform", `translate(${x}, ${GIRL_Y})`);
+        label.textContent = `Nr. ${pos} af ${total} — mod lejligheden`;
+
+        // Update KPIs in outer DOM via callback
+        if(typeof deltaInfo === "function"){
+          deltaInfo({pos, total, progress, slot});
+        }
+      }
+
+      return { svg, render };
+    }
+
+    function showError(msg){
+      const e = document.getElementById("error");
+      e.style.display = "block";
+      e.innerHTML = msg;
+    }
+
+    async function loadData(){
+      const res = await fetch("./data/current.json", { cache: "no-store" });
+      if(!res.ok){
+        throw new Error(`Kunne ikke hente data/current.json (HTTP ${res.status}).`);
+      }
+      return await res.json();
+    }
+
+    // Keep last positions in memory to compute delta within the session.
+    // (Next step: load from history file.)
+    const lastSeen = new Map();
+
+    function buildCard(queue, updatedAt){
+      const title = el("h2", { class:"title" }, [queue.name]);
+      const meta = el("div", { class:"meta" }, [`Sidst opdateret: ${updatedAt}`]);
+
+      const kpi1 = el("div", { class:"pill" }, ["Indlæser…"]);
+      const kpi2 = el("div", { class:"pill" }, ["Progress: –"]);
+      const kpi3 = el("div", { class:"pill" }, ["Sidst: –"]);
+      const kpis = el("div", { class:"kpis" }, [kpi1, kpi2, kpi3]);
+
+      const actions = el("div", { class:"actions" }, [
+        el("button", {
+          onclick: () => {
+            // demo: move 10 forward locally (doesn't persist)
+            const cur = lastSeen.get(queue.id) ?? { pos: queue.position, total: queue.total };
+            const newPos = Math.max(1, cur.pos - 10);
+            renderAll(newPos, cur.total);
+          }
+        }, ["+10 frem (demo)"])
+      ]);
+
+      const head = el("div", { class:"cardHead" }, [
+        el("div", {}, [title, meta]),
+        actions
+      ]);
+
+      const card = el("div", { class:"card" }, [head, kpis]);
+
+      const { svg, render } = buildQueueSvg(queue);
+      card.appendChild(svg);
+
+      function renderAll(pos, total){
+        render(pos, total, ({pos, total, progress, slot}) => {
+          kpi1.textContent = `Placering: ${pos} / ${total}`;
+          kpi2.textContent = `Progress: ${fmtPct(progress)} (slot ${slot}/${VISUAL_SLOTS})`;
+
+          const prev = lastSeen.get(queue.id);
+          if(!prev){
+            kpi3.textContent = "Sidst: (baseline)";
+          } else {
+            const delta = prev.pos - pos;
+            const sign = delta > 0 ? "+" : "";
+            kpi3.textContent = `Sidst: ${prev.pos} → ${pos} (${sign}${delta})`;
+          }
+          lastSeen.set(queue.id, {pos, total});
+        });
+      }
+
+      // initial render
+      renderAll(queue.position, queue.total);
+
+      return card;
+    }
+
+    async function main(){
+      try{
+        const data = await loadData();
+        const updatedAt = data.updated_at ?? "ukendt";
+
+        document.getElementById("updatedAt").textContent = `Data: ${updatedAt}`;
+        const grid = document.getElementById("grid");
+        grid.innerHTML = "";
+
+        const queues = Array.isArray(data.queues) ? data.queues : [];
+        if(!queues.length){
+          showError(`Ingen køer fundet i <code>data/current.json</code>.`);
+          return;
+        }
+
+        // Render cards
+        for(const q of queues){
+          if(!q || !q.id || !q.name || !Number.isFinite(q.position) || !Number.isFinite(q.total)){
+            showError(`Ugyldigt queue-entry i <code>data/current.json</code>. Tjek at hvert entry har <code>id,name,position,total</code>.`);
+            return;
+          }
+          grid.appendChild(buildCard(q, updatedAt));
+        }
+      } catch(err){
+        showError(`Fejl: ${String(err.message || err)}<br><br>
+          Tjek at du har committed <code>data/current.json</code> og at GitHub Pages er slået til.`);
+        console.error(err);
       }
     }
 
-    function update(){
-      let pos = parseInt(posEl.value || "1", 10);
-      let total = parseInt(totalEl.value || "10", 10);
-      total = Math.max(total, 10);
-      pos = clamp(pos, 1, total);
-
-      // Keep slider in sync
-      sliderEl.max = String(total);
-      sliderEl.value = String(pos);
-
-      const progress = computeProgress(pos, total);
-      const slot = visualIndex(progress);
-
-      // Place girl slightly above track
-      const x = xForSlot(slot);
-      girlMarker.setAttribute("transform", `translate(${x}, ${GIRL_Y})`);
-
-      // KPIs
-      const pct = Math.round(progress * 1000) / 10;
-      kpiProgress.textContent = `Progress: ${pct}%`;
-      kpiHuman.textContent = `Visuel plads: ${slot}/${VISUAL_SLOTS}`;
-
-      if(lastPos === null){
-        kpiDelta.textContent = "Sidst: (baseline)";
-      } else {
-        const delta = lastPos - pos;
-        const sign = delta > 0 ? "+" : "";
-        kpiDelta.textContent = `Sidst: ${lastPos} → ${pos} (${sign}${delta})`;
-      }
-
-      label.textContent = `Nr. ${pos} af ${total} — mod lejligheden`;
-
-      meta.textContent = `Skalering: vi viser ${VISUAL_SLOTS} silhouettes uanset køens størrelse. Din datters figur flyttes efter progress = 1 - (pos/total).`;
-
-      lastPos = pos;
-    }
-
-    // Init
-    renderPeople();
-    update();
-
-    // Events
-    posEl.addEventListener("input", update);
-    totalEl.addEventListener("input", update);
-    sliderEl.addEventListener("input", (e) => {
-      posEl.value = sliderEl.value;
-      update();
-    });
-
-    stepEl.addEventListener("click", () => {
-      let pos = parseInt(posEl.value, 10);
-      posEl.value = String(Math.max(1, pos - 10));
-      update();
-    });
-
-    resetEl.addEventListener("click", () => {
-      totalEl.value = "2500";
-      posEl.value = "850";
-      lastPos = null;
-      update();
-    });
+    main();
   </script>
 </body>
 </html>
