@@ -1,0 +1,11 @@
+{
+  "updated_at": "2026-01-05",
+  "queues": [
+    { "id": "amagervold", "name": "A/B Amagervold", "position": 431, "total": 431 },
+    { "id": "buddingevej", "name": "A/B Buddingevej", "position": 53, "total": 53 },
+    { "id": "baghuset", "name": "A/B Baghuset", "position": 332, "total": 332 },
+    { "id": "gl-kongevej-35a-37a", "name": "A/B Gl. Kongevej 35A–37A", "position": 655, "total": 655 },
+    { "id": "positiv", "name": "A/B Positiv", "position": 771, "total": 771 },
+    { "id": "vesterbrogade-kochsvej", "name": "A/B Vesterbrogade 176 / Kochsvej 44-46", "position": 249, "total": 250 }
+  ]
+}
