@@ -22,8 +22,8 @@
     .kpis { display:flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
     .pill { padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.10); font-size: 12px; color: var(--text); }
 
-    svg { width: 100%; height: 190px; display:block; margin-top: 8px; }
-    .apt { filter: drop-shadow(0 6px 10px rgba(255,255,255,0.12)); }
+    svg { width: 100%; height: 200px; display:block; margin-top: 8px; }
+    .apt { filter: drop-shadow(0 8px 14px rgba(255,255,255,0.12)); }
     .pulse { transform-origin: 50% 50%; animation: pulse 2.4s ease-in-out infinite; }
     @keyframes pulse { 0%,100%{ transform: scale(1.00);} 50%{ transform: scale(1.05);} }
 
@@ -36,7 +36,7 @@
     <header>
       <div>
         <h1>Venteliste-dashboard</h1>
-        <p class="sub">Ventelister — rød figur bevæger sig mod lejligheden, når positionen forbedres.</p>
+        <p class="sub">Grå = skrevet op efter baseline · Lysere sort = passeret siden start · Rød = din datter · Lejlighed = helt til højre.</p>
       </div>
       <div class="stamp" id="updatedAt">Indlæser…</div>
     </header>
@@ -68,35 +68,38 @@
 
       <!-- Apartment icon -->
       <g id="apartment">
-        <path d="M40 22 L70 0 L100 22 V92 H40 Z" fill="rgba(255,255,255,0.14)"></path>
-        <rect x="50" y="30" width="16" height="16" fill="rgba(255,255,255,0.20)"></rect>
-        <rect x="74" y="30" width="16" height="16" fill="rgba(255,255,255,0.20)"></rect>
-        <rect x="50" y="54" width="16" height="16" fill="rgba(255,255,255,0.20)"></rect>
-        <rect x="74" y="54" width="16" height="16" fill="rgba(255,255,255,0.20)"></rect>
-        <rect x="66" y="74" width="10" height="18" fill="rgba(255,255,255,0.20)"></rect>
+        <path d="M40 26 L78 0 L116 26 V120 H40 Z" fill="rgba(255,255,255,0.16)"></path>
+        <rect x="54" y="38" width="18" height="18" fill="rgba(255,255,255,0.22)"></rect>
+        <rect x="84" y="38" width="18" height="18" fill="rgba(255,255,255,0.22)"></rect>
+        <rect x="54" y="66" width="18" height="18" fill="rgba(255,255,255,0.22)"></rect>
+        <rect x="84" y="66" width="18" height="18" fill="rgba(255,255,255,0.22)"></rect>
+        <rect x="74" y="92" width="12" height="28" fill="rgba(255,255,255,0.22)"></rect>
       </g>
     </defs>
   </svg>
 
   <script>
-    // ---- Visual config ----
-    const VISUAL_SLOTS = 50;
+    // ---------------- Visual layout ----------------
+    const VISUAL_SLOTS  = 50;
 
-    // Track where silhouettes are placed
-    const TRACK_START_X = 40;
+    // Make the "right side" unmistakable within the visible image.
+    // Everything (queue + girl) lives left; apartment lives far right.
+    const VIEW_W        = 980;
+    const VIEW_H        = 200;
 
-    // IMPORTANT:
-    // - girl moves only until TRACK_END_X
-    // - apartment is clearly to the RIGHT of that, at APARTMENT_X
-    const TRACK_END_X  = 600;  // girl stops before apartment
-    const APARTMENT_X  = 720;  // apartment clearly on the far right
+    const TRACK_START_X = 90;
+    const TRACK_END_X   = 720;   // girl & silhouettes stop here (left side)
+    const TRACK_Y       = 132;
 
-    const SIL_Y  = 78;
-    const GIRL_Y = 78;
+    const APARTMENT_X   = 820;   // apartment clearly on the RIGHT inside the viewBox
+    const APARTMENT_Y   = 22;
+
+    const SIL_Y         = 84;
+    const GIRL_Y        = 84;
 
     function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
 
-    // 0..1 (0 = bagerst, 1 = helt forrest). Pos=1 => ~1
+    // 0..1 (0=bagerst, 1=forrest). pos=1 => ~1
     function computeProgress(pos, total){
       total = Math.max(2, total);
       pos = clamp(pos, 1, total);
@@ -113,7 +116,6 @@
       const e = document.createElement(tag);
       for(const [k,v] of Object.entries(attrs)){
         if(k === "class") e.className = v;
-        else if(k.startsWith("on") && typeof v === "function") e.addEventListener(k.slice(2), v);
         else e.setAttribute(k, v);
       }
       for(const c of children) e.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
@@ -126,35 +128,84 @@
 
     function buildQueueSvg(queue){
       const svg = svgEl("svg");
-      svg.setAttribute("viewBox", "0 0 820 190");
+      svg.setAttribute("viewBox", `0 0 ${VIEW_W} ${VIEW_H}`);
 
-      // Track (stops before apartment, so apartment is visually separate)
+      // Track (left side only)
       const track = svgEl("rect");
-      track.setAttribute("x","30");
-      track.setAttribute("y","120");
-      track.setAttribute("width", String((TRACK_END_X - 30) + 20)); // ~ up to end
+      track.setAttribute("x", String(TRACK_START_X - 20));
+      track.setAttribute("y", String(TRACK_Y));
+      track.setAttribute("width", String((TRACK_END_X - (TRACK_START_X - 20))));
       track.setAttribute("height","10");
       track.setAttribute("rx","5");
       track.setAttribute("fill","url(#trackGrad)");
       svg.appendChild(track);
 
-      // Apartment (far right, clearly separated)
+      // A simple green "path" hint, like your screenshot
+      const path = svgEl("path");
+      path.setAttribute("d", `M ${TRACK_START_X-10} 64 C ${TRACK_START_X+120} 52, ${TRACK_START_X+240} 92, ${TRACK_START_X+360} 64 S ${TRACK_START_X+600} 70, ${TRACK_END_X+10} 64`);
+      path.setAttribute("fill","none");
+      path.setAttribute("stroke","rgba(60, 255, 120, 0.65)");
+      path.setAttribute("stroke-width","6");
+      path.setAttribute("stroke-linecap","round");
+      svg.appendChild(path);
+
+      // Arrow head near goal
+      const arrow = svgEl("path");
+      arrow.setAttribute("d", `M ${TRACK_END_X+8} 64 l 18 -10 l -4 10 l 4 10 z`);
+      arrow.setAttribute("fill","rgba(60, 255, 120, 0.65)");
+      svg.appendChild(arrow);
+
+      // Goal line at end of track
+      const goalLine = svgEl("line");
+      goalLine.setAttribute("x1", String(TRACK_END_X + 18));
+      goalLine.setAttribute("x2", String(TRACK_END_X + 18));
+      goalLine.setAttribute("y1","40");
+      goalLine.setAttribute("y2","170");
+      goalLine.setAttribute("stroke","rgba(255,255,255,0.22)");
+      goalLine.setAttribute("stroke-width","2");
+      goalLine.setAttribute("stroke-dasharray","6 6");
+      svg.appendChild(goalLine);
+
+      // Apartment (RIGHT side of image)
       const apt = svgEl("g");
       apt.setAttribute("class","apt pulse");
-      apt.setAttribute("transform",`translate(${APARTMENT_X}, 18)`);
+      apt.setAttribute("transform", `translate(${APARTMENT_X}, ${APARTMENT_Y}) scale(1.08)`);
       const aptUse = svgEl("use");
       aptUse.setAttribute("href","#apartment");
       apt.appendChild(aptUse);
       svg.appendChild(apt);
 
-      // People (static silhouettes)
+      // People silhouettes (color rules based on start_position)
       const peopleG = svgEl("g");
-      for(let i=0;i<VISUAL_SLOTS;i++){
+
+      const total = Math.max(2, Number(queue.total || 2));
+      const curPos = clamp(Number(queue.position || total), 1, total);
+      const startPos = Number.isFinite(queue.start_position) ? Number(queue.start_position) : null;
+
+      for (let i = 0; i < VISUAL_SLOTS; i++) {
         const x = xForSlot(i);
+
+        // i=0 is back (pos ~ total), i=VISUAL_SLOTS is front (pos ~ 1)
+        const posRep = total - Math.round((i / VISUAL_SLOTS) * (total - 1));
+
+        // New joiners after baseline: behind the baseline start position
+        const isNewAfterStart = (startPos !== null) && (posRep > startPos);
+
+        // People she has passed since baseline: between current and start
+        const passedSinceStart =
+          (startPos !== null) && (posRep <= startPos) && (posRep > curPos);
+
         const u = svgEl("use");
-        u.setAttribute("href","#silhouette");
-        u.setAttribute("transform",`translate(${x}, ${SIL_Y})`);
-        u.setAttribute("opacity","0.92");
+        u.setAttribute("href", "#silhouette");
+        u.setAttribute("transform", `translate(${x}, ${SIL_Y})`);
+
+        // Visual: grey new joiners, lighter black for "passed", normal black otherwise
+        const opacity =
+          isNewAfterStart ? 0.22 :
+          passedSinceStart ? 0.72 :
+          0.92;
+
+        u.setAttribute("opacity", String(opacity));
         peopleG.appendChild(u);
       }
       svg.appendChild(peopleG);
@@ -169,7 +220,7 @@
 
       // Label
       const label = svgEl("text");
-      label.setAttribute("x","30");
+      label.setAttribute("x", String(TRACK_START_X - 20));
       label.setAttribute("y","30");
       label.setAttribute("fill","rgba(255,255,255,0.7)");
       label.setAttribute("font-size","13");
@@ -183,7 +234,6 @@
         const slot = visualIndex(progress);
         const x = xForSlot(slot);
 
-        // Move girl towards apartment (right), but never overlap it
         girlMarker.setAttribute("transform", `translate(${x}, ${GIRL_Y})`);
         label.textContent = `Nr. ${pos} af ${total} — mod lejligheden`;
 
@@ -220,45 +270,39 @@
       const kpis = el("div", { class:"kpis" }, [kpi1, kpi2, kpi3]);
       kpis.appendChild(kpi4);
 
-      const head = el("div", { class:"cardHead" }, [
-        el("div", {}, [title, meta])
-      ]);
-
+      const head = el("div", { class:"cardHead" }, [ el("div", {}, [title, meta]) ]);
       const card = el("div", { class:"card" }, [head, kpis]);
 
       const { svg, render } = buildQueueSvg(queue);
       card.appendChild(svg);
 
-      function renderAll(pos, total){
-        render(pos, total, ({pos, total}) => {
-          kpi1.textContent = `Placering: ${pos} / ${total}`;
+      render(queue.position, queue.total, ({pos, total}) => {
+        kpi1.textContent = `Placering: ${pos} / ${total}`;
 
-          const moved = Number.isFinite(queue.moved) ? queue.moved : null;
-          const movedPct = Number.isFinite(queue.moved_pct) ? queue.moved_pct : null;
-          if(moved === null || movedPct === null){
-            kpi2.textContent = `Fremgang: –`;
-          } else {
-            const sign = moved > 0 ? "+" : "";
-            const dir = moved > 0 ? "frem" : (moved < 0 ? "tilbage" : "uændret");
-            kpi2.textContent = `Fremgang: ${sign}${moved} ${dir} (${movedPct.toFixed(2)}%)`;
-          }
+        const moved = Number.isFinite(queue.moved) ? queue.moved : null;
+        const movedPct = Number.isFinite(queue.moved_pct) ? queue.moved_pct : null;
+        if(moved === null || movedPct === null){
+          kpi2.textContent = `Fremgang: –`;
+        } else {
+          const sign = moved > 0 ? "+" : "";
+          const dir = moved > 0 ? "frem" : (moved < 0 ? "tilbage" : "uændret");
+          kpi2.textContent = `Fremgang: ${sign}${moved} ${dir} (${movedPct.toFixed(2)}%)`;
+        }
 
-          const sp = Number.isFinite(queue.start_position) ? queue.start_position : null;
-          kpi3.textContent = sp === null ? "Baseline: –" : `Baseline: ${sp}`;
+        const sp = Number.isFinite(queue.start_position) ? queue.start_position : null;
+        kpi3.textContent = sp === null ? "Baseline: –" : `Baseline: ${sp}`;
 
-          const prog = queue.progress || {};
-          const wk = Number.isFinite(prog.week) ? prog.week : null;
-          const mo = Number.isFinite(prog.month) ? prog.month : null;
-          const yr = Number.isFinite(prog.year) ? prog.year : null;
-          const parts = [];
-          if(wk !== null) parts.push(`uge ${wk > 0 ? "+" : ""}${wk}`);
-          if(mo !== null) parts.push(`md ${mo > 0 ? "+" : ""}${mo}`);
-          if(yr !== null) parts.push(`år ${yr > 0 ? "+" : ""}${yr}`);
-          kpi4.textContent = parts.length ? `Uge/Måned/År: ${parts.join(" · ")}` : "Uge/Måned/År: (bygger data)";
-        });
-      }
+        const prog = queue.progress || {};
+        const wk = Number.isFinite(prog.week) ? prog.week : null;
+        const mo = Number.isFinite(prog.month) ? prog.month : null;
+        const yr = Number.isFinite(prog.year) ? prog.year : null;
+        const parts = [];
+        if(wk !== null) parts.push(`uge ${wk > 0 ? "+" : ""}${wk}`);
+        if(mo !== null) parts.push(`md ${mo > 0 ? "+" : ""}${mo}`);
+        if(yr !== null) parts.push(`år ${yr > 0 ? "+" : ""}${yr}`);
+        kpi4.textContent = parts.length ? `Uge/Måned/År: ${parts.join(" · ")}` : "Uge/Måned/År: (bygger data)";
+      });
 
-      renderAll(queue.position, queue.total);
       return card;
     }
 
@@ -266,8 +310,8 @@
       try{
         const data = await loadData();
         const updatedAt = data.updated_at ?? "ukendt";
-
         document.getElementById("updatedAt").textContent = `Data: ${updatedAt}`;
+
         const grid = document.getElementById("grid");
         grid.innerHTML = "";
 
