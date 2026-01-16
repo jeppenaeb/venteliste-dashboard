@@ -81,13 +81,18 @@
   <script>
     // ---- Visual config ----
     const VISUAL_SLOTS = 50;
+
+    // Track where silhouettes are placed
     const TRACK_START_X = 40;
 
-    // Keep girl safely LEFT of the apartment (so she always moves *towards* it)
-    const TRACK_END_X   = 680;
+    // IMPORTANT:
+    // - girl moves only until TRACK_END_X
+    // - apartment is clearly to the RIGHT of that, at APARTMENT_X
+    const TRACK_END_X  = 600;  // girl stops before apartment
+    const APARTMENT_X  = 720;  // apartment clearly on the far right
 
-    const SIL_Y         = 78;
-    const GIRL_Y        = 78;
+    const SIL_Y  = 78;
+    const GIRL_Y = 78;
 
     function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
 
@@ -123,20 +128,20 @@
       const svg = svgEl("svg");
       svg.setAttribute("viewBox", "0 0 820 190");
 
-      // Track
+      // Track (stops before apartment, so apartment is visually separate)
       const track = svgEl("rect");
       track.setAttribute("x","30");
       track.setAttribute("y","120");
-      track.setAttribute("width","720");
+      track.setAttribute("width", String((TRACK_END_X - 30) + 20)); // ~ up to end
       track.setAttribute("height","10");
       track.setAttribute("rx","5");
       track.setAttribute("fill","url(#trackGrad)");
       svg.appendChild(track);
 
-      // Apartment (far right)
+      // Apartment (far right, clearly separated)
       const apt = svgEl("g");
       apt.setAttribute("class","apt pulse");
-      apt.setAttribute("transform","translate(710, 18)");
+      apt.setAttribute("transform",`translate(${APARTMENT_X}, 18)`);
       const aptUse = svgEl("use");
       aptUse.setAttribute("href","#apartment");
       apt.appendChild(aptUse);
@@ -178,7 +183,7 @@
         const slot = visualIndex(progress);
         const x = xForSlot(slot);
 
-        // Move girl towards apartment (right)
+        // Move girl towards apartment (right), but never overlap it
         girlMarker.setAttribute("transform", `translate(${x}, ${GIRL_Y})`);
         label.textContent = `Nr. ${pos} af ${total} — mod lejligheden`;
 
@@ -228,7 +233,6 @@
         render(pos, total, ({pos, total}) => {
           kpi1.textContent = `Placering: ${pos} / ${total}`;
 
-          // moved/moved_pct from waitly-watch (authoritative)
           const moved = Number.isFinite(queue.moved) ? queue.moved : null;
           const movedPct = Number.isFinite(queue.moved_pct) ? queue.moved_pct : null;
           if(moved === null || movedPct === null){
