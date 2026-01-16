@@ -1,309 +1,77 @@
-<!doctype html>
-<html lang="da">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Venteliste-dashboard</title>
-  <style>
-    :root { --bg:#0b0c10; --card:#12141b; --text:#e8e9ee; --muted:#9aa0ab; --border:rgba(255,255,255,0.10); }
-    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); }
-    .wrap { max-width: 1100px; margin: 0 auto; padding: 22px; }
-    header { display:flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
-    h1 { margin: 0; font-size: 22px; letter-spacing: 0.2px; }
-    .sub { margin: 0; color: var(--muted); font-size: 13px; }
-    .stamp { color: var(--muted); font-size: 12px; }
-    .grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-    @media (max-width: 900px){ .grid { grid-template-columns: 1fr; } }
-
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
-    .cardHead { display:flex; justify-content: space-between; gap: 10px; align-items: start; }
-    .title { font-size: 16px; margin: 0; }
-    .meta { color: var(--muted); font-size: 12px; margin-top: 3px; }
-    .kpis { display:flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-    .pill { padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.10); font-size: 12px; color: var(--text); }
-
-    svg { width: 100%; height: 200px; display:block; margin-top: 8px; }
-    .apt { filter: drop-shadow(0 8px 14px rgba(255,255,255,0.12)); }
-    .pulse { transform-origin: 50% 50%; animation: pulse 2.4s ease-in-out infinite; }
-    @keyframes pulse { 0%,100%{ transform: scale(1.00);} 50%{ transform: scale(1.05);} }
-
-    .error { background: rgba(255, 0, 0, 0.08); border:1px solid rgba(255,0,0,0.25); color: rgba(255,255,255,0.9); padding: 10px 12px; border-radius: 12px; margin-top: 12px; display:none; }
-    code { color: rgba(255,255,255,0.85); }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <header>
-      <div>
-        <h1>Venteliste-dashboard</h1>
-        <p class="sub">Ventelister — rød figur bevæger sig mod lejligheden (som står tydeligt på højre side).</p>
-      </div>
-      <div class="stamp" id="updatedAt">Indlæser…</div>
-    </header>
-
-    <div id="error" class="error"></div>
-    <div id="grid" class="grid"></div>
-  </div>
-
-  <svg width="0" height="0" style="position:absolute; left:-9999px; top:-9999px;" aria-hidden="true">
-    <defs>
-      <linearGradient id="trackGrad" x1="0" x2="1">
-        <stop offset="0" stop-color="rgba(255,255,255,0.12)"></stop>
-        <stop offset="1" stop-color="rgba(255,255,255,0.04)"></stop>
-      </linearGradient>
-
-      <g id="silhouette">
-        <circle cx="10" cy="8" r="7" fill="rgba(0,0,0,0.85)"></circle>
-        <rect x="3" y="16" width="14" height="34" rx="7" fill="rgba(0,0,0,0.85)"></rect>
-        <rect x="0" y="26" width="20" height="8" rx="4" fill="rgba(0,0,0,0.85)"></rect>
-      </g>
-
-      <g id="girl">
-        <circle cx="12" cy="8" r="7" fill="#1a1a1a"></circle>
-        <path d="M12 16 L2 50 Q12 58 22 50 Z" fill="#c1121f"></path>
-        <rect x="6" y="16" width="12" height="10" rx="5" fill="#1a1a1a"></rect>
-      </g>
-
-      <g id="apartment">
-        <path d="M40 26 L78 0 L116 26 V120 H40 Z" fill="rgba(255,255,255,0.16)"></path>
-        <rect x="54" y="38" width="18" height="18" fill="rgba(255,255,255,0.22)"></rect>
-        <rect x="84" y="38" width="18" height="18" fill="rgba(255,255,255,0.22)"></rect>
-        <rect x="54" y="66" width="18" height="18" fill="rgba(255,255,255,0.22)"></rect>
-        <rect x="84" y="66" width="18" height="18" fill="rgba(255,255,255,0.22)"></rect>
-        <rect x="74" y="92" width="12" height="28" fill="rgba(255,255,255,0.22)"></rect>
-      </g>
-    </defs>
-  </svg>
-
-  <script>
-    // ---------------- Visual layout (make RIGHT side unmistakeable) ----------------
-    const VISUAL_SLOTS = 50;
-
-    // The queue area lives on the LEFT side only:
-    const TRACK_START_X = 60;
-    const TRACK_END_X   = 700;     // girl + silhouettes never go past this
-    const TRACK_Y       = 132;
-
-    // Apartment lives far to the RIGHT with a big gap:
-    const APARTMENT_X   = 1020;
-    const APARTMENT_Y   = 22;
-
-    const SIL_Y  = 84;
-    const GIRL_Y = 84;
-
-    // Wide canvas so right side is clearly separate
-    const VIEW_W = 1160;
-    const VIEW_H = 200;
-
-    function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
-
-    // 0..1 (0=bagerst, 1=forrest). pos=1 => ~1
-    function computeProgress(pos, total){
-      total = Math.max(2, total);
-      pos = clamp(pos, 1, total);
-      return clamp((total - pos) / (total - 1), 0, 1);
+{
+  "updated_at": "2026-01-16T19:31:31+00:00",
+  "queues": [
+    {
+      "id": "1853",
+      "name": "A/B Amagervold - Ekstern venteliste",
+      "position": 431,
+      "total": 474,
+      "active": false,
+      "completed": true,
+      "approved": true,
+      "start_position": 431,
+      "moved": 0,
+      "moved_pct": 0.0
+    },
+    {
+      "id": "1737",
+      "name": "A/B Buddingevej - Ekstern venteliste",
+      "position": 52,
+      "total": 54,
+      "active": false,
+      "completed": true,
+      "approved": true,
+      "start_position": 53,
+      "moved": 1,
+      "moved_pct": 1.89
+    },
+    {
+      "id": "392",
+      "name": "A/B Baghuset - Ekstern venteliste",
+      "position": 328,
+      "total": 335,
+      "active": false,
+      "completed": true,
+      "approved": true,
+      "start_position": 332,
+      "moved": 4,
+      "moved_pct": 1.2
+    },
+    {
+      "id": "41",
+      "name": "A/B Gl Kongevej 35 A - 37 A - Ekstern venteliste",
+      "position": 646,
+      "total": 664,
+      "active": false,
+      "completed": true,
+      "approved": true,
+      "start_position": 655,
+      "moved": 9,
+      "moved_pct": 1.37
+    },
+    {
+      "id": "294",
+      "name": "A/B Positiv - Ekstern venteliste",
+      "position": 768,
+      "total": 774,
+      "active": false,
+      "completed": true,
+      "approved": true,
+      "start_position": 771,
+      "moved": 3,
+      "moved_pct": 0.39
+    },
+    {
+      "id": "966",
+      "name": "A/B Vesterbrogade 176 / Kochsvej 44-46 - Ekstern venteliste",
+      "position": 249,
+      "total": 250,
+      "active": false,
+      "completed": true,
+      "approved": true,
+      "start_position": 249,
+      "moved": 0,
+      "moved_pct": 0.0
     }
-
-    function visualIndex(progress){ return Math.round(progress * VISUAL_SLOTS); }
-    function xForSlot(slot){
-      const t = slot / VISUAL_SLOTS;
-      return TRACK_START_X + t * (TRACK_END_X - TRACK_START_X);
-    }
-
-    function el(tag, attrs={}, children=[]){
-      const e = document.createElement(tag);
-      for(const [k,v] of Object.entries(attrs)){
-        if(k === "class") e.className = v;
-        else e.setAttribute(k, v);
-      }
-      for(const c of children) e.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
-      return e;
-    }
-
-    function svgEl(tag){
-      return document.createElementNS("http://www.w3.org/2000/svg", tag);
-    }
-
-    function buildQueueSvg(queue){
-      const svg = svgEl("svg");
-      svg.setAttribute("viewBox", `0 0 ${VIEW_W} ${VIEW_H}`);
-
-      // Track (left side only)
-      const track = svgEl("rect");
-      track.setAttribute("x", String(TRACK_START_X - 20));
-      track.setAttribute("y", String(TRACK_Y));
-      track.setAttribute("width", String((TRACK_END_X - (TRACK_START_X - 20))));
-      track.setAttribute("height","10");
-      track.setAttribute("rx","5");
-      track.setAttribute("fill","url(#trackGrad)");
-      svg.appendChild(track);
-
-      // Goal line at end of track
-      const goalLine = svgEl("line");
-      goalLine.setAttribute("x1", String(TRACK_END_X + 18));
-      goalLine.setAttribute("x2", String(TRACK_END_X + 18));
-      goalLine.setAttribute("y1","40");
-      goalLine.setAttribute("y2","170");
-      goalLine.setAttribute("stroke","rgba(255,255,255,0.22)");
-      goalLine.setAttribute("stroke-width","2");
-      goalLine.setAttribute("stroke-dasharray","6 6");
-      svg.appendChild(goalLine);
-
-      const goalText = svgEl("text");
-      goalText.setAttribute("x", String(TRACK_END_X + 26));
-      goalText.setAttribute("y","58");
-      goalText.setAttribute("fill","rgba(255,255,255,0.55)");
-      goalText.setAttribute("font-size","12");
-      goalText.textContent = "MÅL →";
-      svg.appendChild(goalText);
-
-      // Apartment (far right, separate area)
-      const apt = svgEl("g");
-      apt.setAttribute("class","apt pulse");
-      apt.setAttribute("transform", `translate(${APARTMENT_X}, ${APARTMENT_Y}) scale(1.05)`);
-      const aptUse = svgEl("use");
-      aptUse.setAttribute("href","#apartment");
-      apt.appendChild(aptUse);
-      svg.appendChild(apt);
-
-      // People silhouettes on left track
-      const peopleG = svgEl("g");
-      for(let i=0;i<VISUAL_SLOTS;i++){
-        const x = xForSlot(i);
-        const u = svgEl("use");
-        u.setAttribute("href","#silhouette");
-        u.setAttribute("transform",`translate(${x}, ${SIL_Y})`);
-        u.setAttribute("opacity","0.92");
-        peopleG.appendChild(u);
-      }
-      svg.appendChild(peopleG);
-
-      // Girl marker
-      const girlMarker = svgEl("g");
-      girlMarker.style.transition = "transform 900ms cubic-bezier(.2,.8,.2,1)";
-      const gUse = svgEl("use");
-      gUse.setAttribute("href","#girl");
-      girlMarker.appendChild(gUse);
-      svg.appendChild(girlMarker);
-
-      // Label
-      const label = svgEl("text");
-      label.setAttribute("x", String(TRACK_START_X - 20));
-      label.setAttribute("y","30");
-      label.setAttribute("fill","rgba(255,255,255,0.7)");
-      label.setAttribute("font-size","13");
-      svg.appendChild(label);
-
-      function render(pos, total, onKpis){
-        total = Math.max(2, total);
-        pos = clamp(pos, 1, total);
-
-        const progress = computeProgress(pos, total);
-        const slot = visualIndex(progress);
-        const x = xForSlot(slot);
-
-        girlMarker.setAttribute("transform", `translate(${x}, ${GIRL_Y})`);
-        label.textContent = `Nr. ${pos} af ${total} — mod lejligheden (til højre)`;
-
-        if(typeof onKpis === "function"){
-          onKpis({pos, total, progress, slot});
-        }
-      }
-
-      return { svg, render };
-    }
-
-    function showError(msg){
-      const e = document.getElementById("error");
-      e.style.display = "block";
-      e.innerHTML = msg;
-    }
-
-    async function loadData(){
-      const res = await fetch("./data/current.json", { cache: "no-store" });
-      if(!res.ok){
-        throw new Error(`Kunne ikke hente data/current.json (HTTP ${res.status}).`);
-      }
-      return await res.json();
-    }
-
-    function buildCard(queue, updatedAt){
-      const title = el("h2", { class:"title" }, [queue.name]);
-      const meta = el("div", { class:"meta" }, [`Sidst opdateret: ${updatedAt}`]);
-
-      const kpi1 = el("div", { class:"pill" }, ["Placering: –"]);
-      const kpi2 = el("div", { class:"pill" }, ["Fremgang: –"]);
-      const kpi3 = el("div", { class:"pill" }, ["Baseline: –"]);
-      const kpi4 = el("div", { class:"pill" }, ["Uge/Måned/År: –"]);
-      const kpis = el("div", { class:"kpis" }, [kpi1, kpi2, kpi3]);
-      kpis.appendChild(kpi4);
-
-      const head = el("div", { class:"cardHead" }, [ el("div", {}, [title, meta]) ]);
-      const card = el("div", { class:"card" }, [head, kpis]);
-
-      const { svg, render } = buildQueueSvg(queue);
-      card.appendChild(svg);
-
-      render(queue.position, queue.total, ({pos, total}) => {
-        kpi1.textContent = `Placering: ${pos} / ${total}`;
-
-        const moved = Number.isFinite(queue.moved) ? queue.moved : null;
-        const movedPct = Number.isFinite(queue.moved_pct) ? queue.moved_pct : null;
-        if(moved === null || movedPct === null){
-          kpi2.textContent = `Fremgang: –`;
-        } else {
-          const sign = moved > 0 ? "+" : "";
-          const dir = moved > 0 ? "frem" : (moved < 0 ? "tilbage" : "uændret");
-          kpi2.textContent = `Fremgang: ${sign}${moved} ${dir} (${movedPct.toFixed(2)}%)`;
-        }
-
-        const sp = Number.isFinite(queue.start_position) ? queue.start_position : null;
-        kpi3.textContent = sp === null ? "Baseline: –" : `Baseline: ${sp}`;
-
-        const prog = queue.progress || {};
-        const wk = Number.isFinite(prog.week) ? prog.week : null;
-        const mo = Number.isFinite(prog.month) ? prog.month : null;
-        const yr = Number.isFinite(prog.year) ? prog.year : null;
-        const parts = [];
-        if(wk !== null) parts.push(`uge ${wk > 0 ? "+" : ""}${wk}`);
-        if(mo !== null) parts.push(`md ${mo > 0 ? "+" : ""}${mo}`);
-        if(yr !== null) parts.push(`år ${yr > 0 ? "+" : ""}${yr}`);
-        kpi4.textContent = parts.length ? `Uge/Måned/År: ${parts.join(" · ")}` : "Uge/Måned/År: (bygger data)";
-      });
-
-      return card;
-    }
-
-    async function main(){
-      try{
-        const data = await loadData();
-        const updatedAt = data.updated_at ?? "ukendt";
-        document.getElementById("updatedAt").textContent = `Data: ${updatedAt}`;
-
-        const grid = document.getElementById("grid");
-        grid.innerHTML = "";
-
-        const queues = Array.isArray(data.queues) ? data.queues : [];
-        if(!queues.length){
-          showError(`Ingen køer fundet i <code>data/current.json</code>.`);
-          return;
-        }
-
-        for(const q of queues){
-          if(!q || !q.id || !q.name || !Number.isFinite(q.position) || !Number.isFinite(q.total)){
-            showError(`Ugyldigt queue-entry i <code>data/current.json</code>. Tjek at hvert entry har <code>id,name,position,total</code>.`);
-            return;
-          }
-          grid.appendChild(buildCard(q, updatedAt));
-        }
-      } catch(err){
-        showError(`Fejl: ${String(err.message || err)}<br><br>
-          Tjek at du har committed <code>data/current.json</code> og at GitHub Pages er slået til.`);
-        console.error(err);
-      }
-    }
-
-    main();
-  </script>
-</body>
-</html>
+  ]
+}
