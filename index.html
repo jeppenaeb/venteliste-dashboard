@@ -22,11 +22,6 @@
     .kpis { display:flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
     .pill { padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.10); font-size: 12px; color: var(--text); }
 
-    .actions { display:flex; gap: 8px; align-items:center; }
-    button{ padding: 8px 10px; border-radius: 12px; border:1px solid rgba(255,255,255,0.14); background:#0f1117; color:var(--text); cursor:pointer; font-size: 12px; }
-    button:hover{ border-color: rgba(255,255,255,0.28); }
-    button:disabled{ opacity: 0.5; cursor: not-allowed; }
-
     svg { width: 100%; height: 190px; display:block; margin-top: 8px; }
     .apt { filter: drop-shadow(0 6px 10px rgba(255,255,255,0.12)); }
     .pulse { transform-origin: 50% 50%; animation: pulse 2.4s ease-in-out infinite; }
@@ -41,7 +36,7 @@
     <header>
       <div>
         <h1>Venteliste-dashboard</h1>
-        <p class="sub">6 ventelister — sorte silhouettes, rød kjole, lejlighed i enden.</p>
+        <p class="sub">Ventelister — rød figur bevæger sig mod lejligheden, når positionen forbedres.</p>
       </div>
       <div class="stamp" id="updatedAt">Indlæser…</div>
     </header>
@@ -87,18 +82,27 @@
     // ---- Visual config ----
     const VISUAL_SLOTS = 50;
     const TRACK_START_X = 40;
-    const TRACK_END_X   = 735;     // keep space for apartment
+
+    // Keep girl safely LEFT of the apartment (so she always moves *towards* it)
+    const TRACK_END_X   = 680;
+
     const SIL_Y         = 78;
     const GIRL_Y        = 78;
 
     function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
-    function computeProgress(pos, total){ return clamp(1 - (pos / total), 0, 1); }
+
+    // 0..1 (0 = bagerst, 1 = helt forrest). Pos=1 => ~1
+    function computeProgress(pos, total){
+      total = Math.max(2, total);
+      pos = clamp(pos, 1, total);
+      return clamp((total - pos) / (total - 1), 0, 1);
+    }
+
     function visualIndex(progress){ return Math.round(progress * VISUAL_SLOTS); }
     function xForSlot(slot){
       const t = slot / VISUAL_SLOTS;
       return TRACK_START_X + t * (TRACK_END_X - TRACK_START_X);
     }
-    function fmtPct(p){ return (Math.round(p * 1000) / 10).toFixed(1) + "%"; }
 
     function el(tag, attrs={}, children=[]){
       const e = document.createElement(tag);
@@ -129,7 +133,7 @@
       track.setAttribute("fill","url(#trackGrad)");
       svg.appendChild(track);
 
-      // Apartment
+      // Apartment (far right)
       const apt = svgEl("g");
       apt.setAttribute("class","apt pulse");
       apt.setAttribute("transform","translate(710, 18)");
@@ -138,7 +142,7 @@
       apt.appendChild(aptUse);
       svg.appendChild(apt);
 
-      // People
+      // People (static silhouettes)
       const peopleG = svgEl("g");
       for(let i=0;i<VISUAL_SLOTS;i++){
         const x = xForSlot(i);
@@ -150,7 +154,7 @@
       }
       svg.appendChild(peopleG);
 
-      // Girl marker (animated)
+      // Girl marker
       const girlMarker = svgEl("g");
       girlMarker.style.transition = "transform 900ms cubic-bezier(.2,.8,.2,1)";
       const gUse = svgEl("use");
@@ -166,20 +170,20 @@
       label.setAttribute("font-size","13");
       svg.appendChild(label);
 
-      function render(pos, total, deltaInfo){
-        total = Math.max(10, total);
+      function render(pos, total, onKpis){
+        total = Math.max(2, total);
         pos = clamp(pos, 1, total);
 
         const progress = computeProgress(pos, total);
         const slot = visualIndex(progress);
         const x = xForSlot(slot);
 
+        // Move girl towards apartment (right)
         girlMarker.setAttribute("transform", `translate(${x}, ${GIRL_Y})`);
         label.textContent = `Nr. ${pos} af ${total} — mod lejligheden`;
 
-        // Update KPIs in outer DOM via callback
-        if(typeof deltaInfo === "function"){
-          deltaInfo({pos, total, progress, slot});
+        if(typeof onKpis === "function"){
+          onKpis({pos, total, progress, slot});
         }
       }
 
@@ -200,33 +204,19 @@
       return await res.json();
     }
 
-    // Keep last positions in memory to compute delta within the session.
-    // (Next step: load from history file.)
-    const lastSeen = new Map();
-
     function buildCard(queue, updatedAt){
       const title = el("h2", { class:"title" }, [queue.name]);
       const meta = el("div", { class:"meta" }, [`Sidst opdateret: ${updatedAt}`]);
 
-      const kpi1 = el("div", { class:"pill" }, ["Indlæser…"]);
-      const kpi2 = el("div", { class:"pill" }, ["Progress: –"]);
-      const kpi3 = el("div", { class:"pill" }, ["Sidst: –"]);
+      const kpi1 = el("div", { class:"pill" }, ["Placering: –"]);
+      const kpi2 = el("div", { class:"pill" }, ["Fremgang: –"]);
+      const kpi3 = el("div", { class:"pill" }, ["Baseline: –"]);
+      const kpi4 = el("div", { class:"pill" }, ["Uge/Måned/År: –"]);
       const kpis = el("div", { class:"kpis" }, [kpi1, kpi2, kpi3]);
-
-      const actions = el("div", { class:"actions" }, [
-        el("button", {
-          onclick: () => {
-            // demo: move 10 forward locally (doesn't persist)
-            const cur = lastSeen.get(queue.id) ?? { pos: queue.position, total: queue.total };
-            const newPos = Math.max(1, cur.pos - 10);
-            renderAll(newPos, cur.total);
-          }
-        }, ["+10 frem (demo)"])
-      ]);
+      kpis.appendChild(kpi4);
 
       const head = el("div", { class:"cardHead" }, [
-        el("div", {}, [title, meta]),
-        actions
+        el("div", {}, [title, meta])
       ]);
 
       const card = el("div", { class:"card" }, [head, kpis]);
@@ -235,25 +225,36 @@
       card.appendChild(svg);
 
       function renderAll(pos, total){
-        render(pos, total, ({pos, total, progress, slot}) => {
+        render(pos, total, ({pos, total}) => {
           kpi1.textContent = `Placering: ${pos} / ${total}`;
-          kpi2.textContent = `Progress: ${fmtPct(progress)} (slot ${slot}/${VISUAL_SLOTS})`;
 
-          const prev = lastSeen.get(queue.id);
-          if(!prev){
-            kpi3.textContent = "Sidst: (baseline)";
+          // moved/moved_pct from waitly-watch (authoritative)
+          const moved = Number.isFinite(queue.moved) ? queue.moved : null;
+          const movedPct = Number.isFinite(queue.moved_pct) ? queue.moved_pct : null;
+          if(moved === null || movedPct === null){
+            kpi2.textContent = `Fremgang: –`;
           } else {
-            const delta = prev.pos - pos;
-            const sign = delta > 0 ? "+" : "";
-            kpi3.textContent = `Sidst: ${prev.pos} → ${pos} (${sign}${delta})`;
+            const sign = moved > 0 ? "+" : "";
+            const dir = moved > 0 ? "frem" : (moved < 0 ? "tilbage" : "uændret");
+            kpi2.textContent = `Fremgang: ${sign}${moved} ${dir} (${movedPct.toFixed(2)}%)`;
           }
-          lastSeen.set(queue.id, {pos, total});
+
+          const sp = Number.isFinite(queue.start_position) ? queue.start_position : null;
+          kpi3.textContent = sp === null ? "Baseline: –" : `Baseline: ${sp}`;
+
+          const prog = queue.progress || {};
+          const wk = Number.isFinite(prog.week) ? prog.week : null;
+          const mo = Number.isFinite(prog.month) ? prog.month : null;
+          const yr = Number.isFinite(prog.year) ? prog.year : null;
+          const parts = [];
+          if(wk !== null) parts.push(`uge ${wk > 0 ? "+" : ""}${wk}`);
+          if(mo !== null) parts.push(`md ${mo > 0 ? "+" : ""}${mo}`);
+          if(yr !== null) parts.push(`år ${yr > 0 ? "+" : ""}${yr}`);
+          kpi4.textContent = parts.length ? `Uge/Måned/År: ${parts.join(" · ")}` : "Uge/Måned/År: (bygger data)";
         });
       }
 
-      // initial render
       renderAll(queue.position, queue.total);
-
       return card;
     }
 
@@ -272,7 +273,6 @@
           return;
         }
 
-        // Render cards
         for(const q of queues){
           if(!q || !q.id || !q.name || !Number.isFinite(q.position) || !Number.isFinite(q.total)){
             showError(`Ugyldigt queue-entry i <code>data/current.json</code>. Tjek at hvert entry har <code>id,name,position,total</code>.`);
