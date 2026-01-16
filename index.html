@@ -36,7 +36,7 @@
     <header>
       <div>
         <h1>Venteliste-dashboard</h1>
-        <p class="sub">Grå = skrevet op efter baseline · Lysere sort = passeret siden start · Rød = din datter · Lejlighed = helt til højre.</p>
+        <p class="sub">Grå = skrevet op efter baseline · Lysere sort = passeret siden start · Rød = din datter · Huset står i højre ende.</p>
       </div>
       <div class="stamp" id="updatedAt">Indlæser…</div>
     </header>
@@ -52,21 +52,18 @@
         <stop offset="1" stop-color="rgba(255,255,255,0.04)"></stop>
       </linearGradient>
 
-      <!-- Simple "person" silhouette -->
       <g id="silhouette">
         <circle cx="10" cy="8" r="7" fill="rgba(0,0,0,0.85)"></circle>
         <rect x="3" y="16" width="14" height="34" rx="7" fill="rgba(0,0,0,0.85)"></rect>
         <rect x="0" y="26" width="20" height="8" rx="4" fill="rgba(0,0,0,0.85)"></rect>
       </g>
 
-      <!-- Girl in red dress -->
       <g id="girl">
         <circle cx="12" cy="8" r="7" fill="#1a1a1a"></circle>
         <path d="M12 16 L2 50 Q12 58 22 50 Z" fill="#c1121f"></path>
         <rect x="6" y="16" width="12" height="10" rx="5" fill="#1a1a1a"></rect>
       </g>
 
-      <!-- Apartment icon -->
       <g id="apartment">
         <path d="M40 26 L78 0 L116 26 V120 H40 Z" fill="rgba(255,255,255,0.16)"></path>
         <rect x="54" y="38" width="18" height="18" fill="rgba(255,255,255,0.22)"></rect>
@@ -79,23 +76,25 @@
   </svg>
 
   <script>
-    // ---------------- Visual layout ----------------
     const VISUAL_SLOTS  = 50;
 
-    // Make the "right side" unmistakable within the visible image.
-    // Everything (queue + girl) lives left; apartment lives far right.
-    const VIEW_W        = 980;
+    // Wide enough that house is visually "right end", but house is also pinned to RIGHT edge
+    const VIEW_W        = 1200;
     const VIEW_H        = 200;
 
+    // Queue lives on the left part
     const TRACK_START_X = 90;
-    const TRACK_END_X   = 720;   // girl & silhouettes stop here (left side)
+    const TRACK_END_X   = 820;
     const TRACK_Y       = 132;
-
-    const APARTMENT_X   = 820;   // apartment clearly on the RIGHT inside the viewBox
-    const APARTMENT_Y   = 22;
 
     const SIL_Y         = 84;
     const GIRL_Y        = 84;
+
+    // House pinning
+    const HOUSE_WIDTH   = 120;  // matches the rough width of the apartment icon (40..116)
+    const HOUSE_MARGIN  = 20;
+    const HOUSE_X       = VIEW_W - HOUSE_MARGIN - HOUSE_WIDTH;
+    const HOUSE_Y       = 22;
 
     function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
 
@@ -130,7 +129,7 @@
       const svg = svgEl("svg");
       svg.setAttribute("viewBox", `0 0 ${VIEW_W} ${VIEW_H}`);
 
-      // Track (left side only)
+      // Track
       const track = svgEl("rect");
       track.setAttribute("x", String(TRACK_START_X - 20));
       track.setAttribute("y", String(TRACK_Y));
@@ -140,36 +139,10 @@
       track.setAttribute("fill","url(#trackGrad)");
       svg.appendChild(track);
 
-      // A simple green "path" hint, like your screenshot
-      const path = svgEl("path");
-      path.setAttribute("d", `M ${TRACK_START_X-10} 64 C ${TRACK_START_X+120} 52, ${TRACK_START_X+240} 92, ${TRACK_START_X+360} 64 S ${TRACK_START_X+600} 70, ${TRACK_END_X+10} 64`);
-      path.setAttribute("fill","none");
-      path.setAttribute("stroke","rgba(60, 255, 120, 0.65)");
-      path.setAttribute("stroke-width","6");
-      path.setAttribute("stroke-linecap","round");
-      svg.appendChild(path);
-
-      // Arrow head near goal
-      const arrow = svgEl("path");
-      arrow.setAttribute("d", `M ${TRACK_END_X+8} 64 l 18 -10 l -4 10 l 4 10 z`);
-      arrow.setAttribute("fill","rgba(60, 255, 120, 0.65)");
-      svg.appendChild(arrow);
-
-      // Goal line at end of track
-      const goalLine = svgEl("line");
-      goalLine.setAttribute("x1", String(TRACK_END_X + 18));
-      goalLine.setAttribute("x2", String(TRACK_END_X + 18));
-      goalLine.setAttribute("y1","40");
-      goalLine.setAttribute("y2","170");
-      goalLine.setAttribute("stroke","rgba(255,255,255,0.22)");
-      goalLine.setAttribute("stroke-width","2");
-      goalLine.setAttribute("stroke-dasharray","6 6");
-      svg.appendChild(goalLine);
-
-      // Apartment (RIGHT side of image)
+      // House pinned to the right edge of the image
       const apt = svgEl("g");
       apt.setAttribute("class","apt pulse");
-      apt.setAttribute("transform", `translate(${APARTMENT_X}, ${APARTMENT_Y}) scale(1.08)`);
+      apt.setAttribute("transform", `translate(${HOUSE_X}, ${HOUSE_Y}) scale(1.10)`);
       const aptUse = svgEl("use");
       aptUse.setAttribute("href","#apartment");
       apt.appendChild(aptUse);
@@ -199,7 +172,6 @@
         u.setAttribute("href", "#silhouette");
         u.setAttribute("transform", `translate(${x}, ${SIL_Y})`);
 
-        // Visual: grey new joiners, lighter black for "passed", normal black otherwise
         const opacity =
           isNewAfterStart ? 0.22 :
           passedSinceStart ? 0.72 :
