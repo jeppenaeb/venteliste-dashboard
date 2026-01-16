@@ -22,14 +22,55 @@
     .kpis { display:flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
     .pill { padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.10); font-size: 12px; color: var(--text); }
 
-    /* House "goal" pinned top-right of the card (outside the SVG) */
-    .goalWrap { display:flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-    .goal { display:flex; align-items:center; gap: 8px; padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.10); }
-    .goalIcon { width: 22px; height: 22px; display:inline-block; }
-    .goalText { font-size: 12px; color: rgba(255,255,255,0.85); line-height: 1.1; text-align:right; }
-    .goalSub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    /* --- THE IMPORTANT PART: SVG + HOUSE IN A SEPARATE RIGHT COLUMN --- */
+    .sceneRow{
+      display:flex;
+      gap: 12px;
+      align-items: stretch;
+      margin-top: 10px;
+    }
+    .sceneLeft{
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .sceneRight{
+      flex: 0 0 170px;               /* fixed goal panel */
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.04);
+      display:flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 10px;
+      text-align:center;
+    }
+    .goalTitle{
+      font-size: 12px;
+      color: rgba(255,255,255,0.85);
+      margin: 0 0 6px 0;
+    }
+    .goalSub{
+      font-size: 11px;
+      color: var(--muted);
+      margin: 6px 0 0 0;
+    }
+    .goalHouse{
+      width: 120px;
+      height: 120px;
+      filter: drop-shadow(0 10px 18px rgba(255,255,255,0.12));
+      animation: pulse 2.4s ease-in-out infinite;
+      transform-origin: 50% 50%;
+    }
+    @keyframes pulse { 0%,100%{ transform: scale(1.00);} 50%{ transform: scale(1.05);} }
 
-    svg { width: 100%; height: 200px; display:block; margin-top: 8px; }
+    /* Mobile: stack (still separate, just below) */
+    @media (max-width: 520px){
+      .sceneRow{ flex-direction: column; }
+      .sceneRight{ flex-basis: auto; }
+    }
+
+    svg.queueSvg { width: 100%; height: 170px; display:block; }
     .error { background: rgba(255, 0, 0, 0.08); border:1px solid rgba(255,0,0,0.25); color: rgba(255,255,255,0.9); padding: 10px 12px; border-radius: 12px; margin-top: 12px; display:none; }
     code { color: rgba(255,255,255,0.85); }
   </style>
@@ -39,7 +80,7 @@
     <header>
       <div>
         <h1>Venteliste-dashboard</h1>
-        <p class="sub">Grå = skrevet op efter baseline · Lysere sort = passeret siden start · Rød = din datter · 🏠 er mål (altid helt til højre i kortets header).</p>
+        <p class="sub">Grå = skrevet op efter baseline · Lysere sort = passeret siden start · Rød = din datter · 🏠 står fysisk til højre for animationen.</p>
       </div>
       <div class="stamp" id="updatedAt">Indlæser…</div>
     </header>
@@ -48,6 +89,7 @@
     <div id="grid" class="grid"></div>
   </div>
 
+  <!-- defs -->
   <svg width="0" height="0" style="position:absolute; left:-9999px; top:-9999px;" aria-hidden="true">
     <defs>
       <linearGradient id="trackGrad" x1="0" x2="1">
@@ -66,18 +108,28 @@
         <path d="M12 16 L2 50 Q12 58 22 50 Z" fill="#c1121f"></path>
         <rect x="6" y="16" width="12" height="10" rx="5" fill="#1a1a1a"></rect>
       </g>
+
+      <!-- house icon for the right panel -->
+      <g id="apartment">
+        <path d="M40 26 L78 0 L116 26 V120 H40 Z" fill="rgba(255,255,255,0.18)"></path>
+        <rect x="54" y="38" width="18" height="18" fill="rgba(255,255,255,0.26)"></rect>
+        <rect x="84" y="38" width="18" height="18" fill="rgba(255,255,255,0.26)"></rect>
+        <rect x="54" y="66" width="18" height="18" fill="rgba(255,255,255,0.26)"></rect>
+        <rect x="84" y="66" width="18" height="18" fill="rgba(255,255,255,0.26)"></rect>
+        <rect x="74" y="92" width="12" height="28" fill="rgba(255,255,255,0.30)"></rect>
+      </g>
     </defs>
   </svg>
 
   <script>
     const VISUAL_SLOTS  = 50;
 
-    // SVG only shows the queue (no house inside SVG anymore)
+    // SVG just needs enough width for the queue; house is NOT inside SVG anymore
     const VIEW_W        = 980;
     const VIEW_H        = 200;
 
-    const TRACK_START_X = 90;
-    const TRACK_END_X   = 860;
+    const TRACK_START_X = 70;
+    const TRACK_END_X   = 930;
     const TRACK_Y       = 132;
 
     const SIL_Y         = 84;
@@ -107,29 +159,31 @@
       for(const c of children) e.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
       return e;
     }
+    function svgEl(tag){ return document.createElementNS("http://www.w3.org/2000/svg", tag); }
 
-    function svgEl(tag){
-      return document.createElementNS("http://www.w3.org/2000/svg", tag);
-    }
+    function buildGoalPanel(){
+      const panel = el("div", { class: "sceneRight" }, [
+        el("p", { class:"goalTitle" }, ["Mål: Lejligheden"]),
+      ]);
 
-    function makeHouseIcon(){
-      // Tiny inline SVG (as DOM) so it always sits top-right in the header
-      const s = document.createElementNS("http://www.w3.org/2000/svg","svg");
-      s.setAttribute("viewBox","0 0 24 24");
-      s.setAttribute("class","goalIcon");
-      const roof = document.createElementNS("http://www.w3.org/2000/svg","path");
-      roof.setAttribute("d","M12 3 L3 10.2 V21 H9.2 V14.8 H14.8 V21 H21 V10.2 Z");
-      roof.setAttribute("fill","rgba(255,255,255,0.28)");
-      const door = document.createElementNS("http://www.w3.org/2000/svg","rect");
-      door.setAttribute("x","10.2"); door.setAttribute("y","15"); door.setAttribute("width","3.6"); door.setAttribute("height","6");
-      door.setAttribute("fill","rgba(255,255,255,0.42)");
-      s.appendChild(roof); s.appendChild(door);
-      return s;
+      const houseSvg = document.createElementNS("http://www.w3.org/2000/svg","svg");
+      houseSvg.setAttribute("viewBox","0 0 160 140");
+      houseSvg.setAttribute("class","goalHouse");
+
+      const u = document.createElementNS("http://www.w3.org/2000/svg","use");
+      u.setAttribute("href","#apartment");
+      u.setAttribute("transform","translate(20,10)"); // center nicely in 160x140
+      houseSvg.appendChild(u);
+
+      panel.appendChild(houseSvg);
+      panel.appendChild(el("p", { class:"goalSub" }, ["(altid til højre)"]));
+      return panel;
     }
 
     function buildQueueSvg(queue){
       const svg = svgEl("svg");
       svg.setAttribute("viewBox", `0 0 ${VIEW_W} ${VIEW_H}`);
+      svg.setAttribute("class","queueSvg");
 
       // Track
       const track = svgEl("rect");
@@ -228,21 +282,7 @@
       const title = el("h2", { class:"title" }, [queue.name]);
       const meta = el("div", { class:"meta" }, [`Sidst opdateret: ${updatedAt}`]);
 
-      // Goal UI in top-right (always right side)
-      const goalBox = el("div", { class:"goalWrap" }, [
-        el("div", { class:"goal" }, [
-          makeHouseIcon(),
-          el("div", {}, [
-            el("div", { class:"goalText" }, ["Mål: Lejligheden"]),
-            el("div", { class:"goalSub" }, ["(altid i højre side)"])
-          ])
-        ])
-      ]);
-
-      const head = el("div", { class:"cardHead" }, [
-        el("div", {}, [title, meta]),
-        goalBox
-      ]);
+      const head = el("div", { class:"cardHead" }, [ el("div", {}, [title, meta]) ]);
 
       const kpi1 = el("div", { class:"pill" }, ["Placering: –"]);
       const kpi2 = el("div", { class:"pill" }, ["Fremgang: –"]);
@@ -253,8 +293,18 @@
 
       const card = el("div", { class:"card" }, [head, kpis]);
 
+      // ---- scene row: svg left, goal panel right (ALWAYS) ----
+      const sceneRow = el("div", { class:"sceneRow" }, []);
+      const left = el("div", { class:"sceneLeft" }, []);
+      const right = buildGoalPanel();
+
       const { svg, render } = buildQueueSvg(queue);
-      card.appendChild(svg);
+      left.appendChild(svg);
+
+      sceneRow.appendChild(left);
+      sceneRow.appendChild(right);
+
+      card.appendChild(sceneRow);
 
       render(queue.position, queue.total, ({pos, total}) => {
         kpi1.textContent = `Placering: ${pos} / ${total}`;
