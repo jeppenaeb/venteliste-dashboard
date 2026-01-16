@@ -22,11 +22,14 @@
     .kpis { display:flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
     .pill { padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.10); font-size: 12px; color: var(--text); }
 
-    svg { width: 100%; height: 200px; display:block; margin-top: 8px; }
-    .apt { filter: drop-shadow(0 8px 14px rgba(255,255,255,0.12)); }
-    .pulse { transform-origin: 50% 50%; animation: pulse 2.4s ease-in-out infinite; }
-    @keyframes pulse { 0%,100%{ transform: scale(1.00);} 50%{ transform: scale(1.05);} }
+    /* House "goal" pinned top-right of the card (outside the SVG) */
+    .goalWrap { display:flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+    .goal { display:flex; align-items:center; gap: 8px; padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.10); }
+    .goalIcon { width: 22px; height: 22px; display:inline-block; }
+    .goalText { font-size: 12px; color: rgba(255,255,255,0.85); line-height: 1.1; text-align:right; }
+    .goalSub { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
+    svg { width: 100%; height: 200px; display:block; margin-top: 8px; }
     .error { background: rgba(255, 0, 0, 0.08); border:1px solid rgba(255,0,0,0.25); color: rgba(255,255,255,0.9); padding: 10px 12px; border-radius: 12px; margin-top: 12px; display:none; }
     code { color: rgba(255,255,255,0.85); }
   </style>
@@ -36,7 +39,7 @@
     <header>
       <div>
         <h1>Venteliste-dashboard</h1>
-        <p class="sub">Grå = skrevet op efter baseline · Lysere sort = passeret siden start · Rød = din datter · Huset står i højre ende.</p>
+        <p class="sub">Grå = skrevet op efter baseline · Lysere sort = passeret siden start · Rød = din datter · 🏠 er mål (altid helt til højre i kortets header).</p>
       </div>
       <div class="stamp" id="updatedAt">Indlæser…</div>
     </header>
@@ -63,38 +66,22 @@
         <path d="M12 16 L2 50 Q12 58 22 50 Z" fill="#c1121f"></path>
         <rect x="6" y="16" width="12" height="10" rx="5" fill="#1a1a1a"></rect>
       </g>
-
-      <g id="apartment">
-        <path d="M40 26 L78 0 L116 26 V120 H40 Z" fill="rgba(255,255,255,0.16)"></path>
-        <rect x="54" y="38" width="18" height="18" fill="rgba(255,255,255,0.22)"></rect>
-        <rect x="84" y="38" width="18" height="18" fill="rgba(255,255,255,0.22)"></rect>
-        <rect x="54" y="66" width="18" height="18" fill="rgba(255,255,255,0.22)"></rect>
-        <rect x="84" y="66" width="18" height="18" fill="rgba(255,255,255,0.22)"></rect>
-        <rect x="74" y="92" width="12" height="28" fill="rgba(255,255,255,0.22)"></rect>
-      </g>
     </defs>
   </svg>
 
   <script>
     const VISUAL_SLOTS  = 50;
 
-    // Wide enough that house is visually "right end", but house is also pinned to RIGHT edge
-    const VIEW_W        = 1200;
+    // SVG only shows the queue (no house inside SVG anymore)
+    const VIEW_W        = 980;
     const VIEW_H        = 200;
 
-    // Queue lives on the left part
     const TRACK_START_X = 90;
-    const TRACK_END_X   = 820;
+    const TRACK_END_X   = 860;
     const TRACK_Y       = 132;
 
     const SIL_Y         = 84;
     const GIRL_Y        = 84;
-
-    // House pinning
-    const HOUSE_WIDTH   = 120;  // matches the rough width of the apartment icon (40..116)
-    const HOUSE_MARGIN  = 20;
-    const HOUSE_X       = VIEW_W - HOUSE_MARGIN - HOUSE_WIDTH;
-    const HOUSE_Y       = 22;
 
     function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
 
@@ -125,6 +112,21 @@
       return document.createElementNS("http://www.w3.org/2000/svg", tag);
     }
 
+    function makeHouseIcon(){
+      // Tiny inline SVG (as DOM) so it always sits top-right in the header
+      const s = document.createElementNS("http://www.w3.org/2000/svg","svg");
+      s.setAttribute("viewBox","0 0 24 24");
+      s.setAttribute("class","goalIcon");
+      const roof = document.createElementNS("http://www.w3.org/2000/svg","path");
+      roof.setAttribute("d","M12 3 L3 10.2 V21 H9.2 V14.8 H14.8 V21 H21 V10.2 Z");
+      roof.setAttribute("fill","rgba(255,255,255,0.28)");
+      const door = document.createElementNS("http://www.w3.org/2000/svg","rect");
+      door.setAttribute("x","10.2"); door.setAttribute("y","15"); door.setAttribute("width","3.6"); door.setAttribute("height","6");
+      door.setAttribute("fill","rgba(255,255,255,0.42)");
+      s.appendChild(roof); s.appendChild(door);
+      return s;
+    }
+
     function buildQueueSvg(queue){
       const svg = svgEl("svg");
       svg.setAttribute("viewBox", `0 0 ${VIEW_W} ${VIEW_H}`);
@@ -138,15 +140,6 @@
       track.setAttribute("rx","5");
       track.setAttribute("fill","url(#trackGrad)");
       svg.appendChild(track);
-
-      // House pinned to the right edge of the image
-      const apt = svgEl("g");
-      apt.setAttribute("class","apt pulse");
-      apt.setAttribute("transform", `translate(${HOUSE_X}, ${HOUSE_Y}) scale(1.10)`);
-      const aptUse = svgEl("use");
-      aptUse.setAttribute("href","#apartment");
-      apt.appendChild(aptUse);
-      svg.appendChild(apt);
 
       // People silhouettes (color rules based on start_position)
       const peopleG = svgEl("g");
@@ -235,6 +228,22 @@
       const title = el("h2", { class:"title" }, [queue.name]);
       const meta = el("div", { class:"meta" }, [`Sidst opdateret: ${updatedAt}`]);
 
+      // Goal UI in top-right (always right side)
+      const goalBox = el("div", { class:"goalWrap" }, [
+        el("div", { class:"goal" }, [
+          makeHouseIcon(),
+          el("div", {}, [
+            el("div", { class:"goalText" }, ["Mål: Lejligheden"]),
+            el("div", { class:"goalSub" }, ["(altid i højre side)"])
+          ])
+        ])
+      ]);
+
+      const head = el("div", { class:"cardHead" }, [
+        el("div", {}, [title, meta]),
+        goalBox
+      ]);
+
       const kpi1 = el("div", { class:"pill" }, ["Placering: –"]);
       const kpi2 = el("div", { class:"pill" }, ["Fremgang: –"]);
       const kpi3 = el("div", { class:"pill" }, ["Baseline: –"]);
@@ -242,7 +251,6 @@
       const kpis = el("div", { class:"kpis" }, [kpi1, kpi2, kpi3]);
       kpis.appendChild(kpi4);
 
-      const head = el("div", { class:"cardHead" }, [ el("div", {}, [title, meta]) ]);
       const card = el("div", { class:"card" }, [head, kpis]);
 
       const { svg, render } = buildQueueSvg(queue);
